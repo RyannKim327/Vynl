@@ -24,10 +24,10 @@ class OfflinePage extends StatefulWidget {
   final VoidCallback onOpenPlayer;
 
   @override
-  State<OfflinePage> createState() => _OfflinePageState();
+  State<OfflinePage> createState() => OfflinePageState();
 }
 
-class _OfflinePageState extends State<OfflinePage> {
+class OfflinePageState extends State<OfflinePage> {
   final MusicLibraryService _library = MusicLibraryService();
   final PlaylistController _playlists = PlaylistController();
   final TextEditingController _searchController = TextEditingController();
@@ -41,7 +41,7 @@ class _OfflinePageState extends State<OfflinePage> {
   @override
   void initState() {
     super.initState();
-    _loadLibrary();
+    loadLibrary();
     _playlists.load();
   }
 
@@ -52,7 +52,7 @@ class _OfflinePageState extends State<OfflinePage> {
     super.dispose();
   }
 
-  Future<void> _loadLibrary() async {
+  Future<void> loadLibrary() async {
     setState(() {
       _loading = true;
       _error = null;
@@ -211,9 +211,8 @@ class _OfflinePageState extends State<OfflinePage> {
       final playlist = await _playlists.create(name);
       await _playlists.addSong(playlist.id, song);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Added to ${playlist.name}')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Added to ${playlist.name}')));
       return;
     }
 
@@ -222,9 +221,7 @@ class _OfflinePageState extends State<OfflinePage> {
     final playlist = _playlists.byId(selected);
     final name = playlist?.name ?? 'playlist';
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(added ? 'Added to $name' : 'Already in $name'),
-      ),
+      SnackBar(content: Text(added ? 'Added to $name' : 'Already in $name')),
     );
   }
 
@@ -237,7 +234,7 @@ class _OfflinePageState extends State<OfflinePage> {
           if (_view == _LibraryView.songs)
             IconButton(
               tooltip: 'Refresh library',
-              onPressed: _loading ? null : _loadLibrary,
+              onPressed: _loading ? null : loadLibrary,
               icon: const Icon(Icons.refresh_rounded),
             )
           else
@@ -334,7 +331,7 @@ class _OfflinePageState extends State<OfflinePage> {
         title: 'No access to your music',
         message: _error!,
         actionLabel: 'Try again',
-        onAction: _loadLibrary,
+        onAction: loadLibrary,
       );
     }
 
@@ -345,7 +342,7 @@ class _OfflinePageState extends State<OfflinePage> {
         title: 'No songs found',
         message: 'Copy some music onto this device and tap refresh to load it.',
         actionLabel: 'Refresh',
-        onAction: _loadLibrary,
+        onAction: loadLibrary,
       );
     }
 

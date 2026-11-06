@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 
+import '../services/music_cache_service.dart';
 import '../services/player_controller.dart';
 import '../services/youtube_service.dart';
 import '../utils/format.dart';
@@ -69,7 +70,9 @@ class PlayerPage extends StatelessWidget {
                               try {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text('Downloading "${song.title}" as MP3...'),
+                                    content: Text(
+                                      'Downloading "${song.title}" as MP3...',
+                                    ),
                                     duration: const Duration(seconds: 2),
                                   ),
                                 );
@@ -77,7 +80,9 @@ class PlayerPage extends StatelessWidget {
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text('Downloaded "${song.title}" as MP3'),
+                                      content: Text(
+                                        'Downloaded "${song.title}" as MP3',
+                                      ),
                                     ),
                                   );
                                 }
@@ -85,7 +90,9 @@ class PlayerPage extends StatelessWidget {
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text('Failed to download "${song.title}": $e'),
+                                      content: Text(
+                                        'Failed to download "${song.title}": $e',
+                                      ),
                                     ),
                                   );
                                 }
@@ -147,6 +154,65 @@ class PlayerPage extends StatelessWidget {
                         fontSize: 12,
                       ),
                     ),
+                    if (!song.isLocal &&
+                        MusicCacheService().cachedSongIds.value.contains(
+                          song.videoId,
+                        )) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.bolt_rounded,
+                            size: 14,
+                            color: scheme.primary,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            'Cached for fast offline playback',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: scheme.primary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    if (controller.isPausedByTenSongLimit) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: scheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.pause_circle_filled_rounded,
+                              color: scheme.primary,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                'Paused after 10 songs • Tap Play to resume',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: scheme.onPrimaryContainer,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     _ProgressBar(
                       controller: controller,

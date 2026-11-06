@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/song.dart';
+import '../services/music_cache_service.dart';
 import '../services/player_controller.dart';
 import '../services/youtube_service.dart';
 import '../widgets/message_state.dart';
@@ -9,12 +10,14 @@ import '../widgets/song_tile.dart';
 class OnlinePage extends StatefulWidget {
   const OnlinePage({
     super.key,
-    required this.controller,
-    required this.onOpenPlayer,
+    this.controller,
+    this.onOpenPlayer,
+    this.onDownloaded,
   });
 
-  final PlayerController controller;
-  final VoidCallback onOpenPlayer;
+  final PlayerController? controller;
+  final VoidCallback? onOpenPlayer;
+  final VoidCallback? onDownloaded;
 
   @override
   State<OnlinePage> createState() => _OnlinePageState();
@@ -22,20 +25,50 @@ class OnlinePage extends StatefulWidget {
 
 class _OnlinePageState extends State<OnlinePage> {
   final YoutubeService _youtube = YoutubeService();
+  final MusicCacheService _cacheService = MusicCacheService();
   final TextEditingController _searchController = TextEditingController();
 
   List<Song> _results = const [];
   bool _loading = false;
   bool _searched = false;
   String? _error;
-  String? _resolvingId;
 
   final Set<String> _downloadingIds = {};
   final Map<String, double> _downloadProgress = {};
   final Set<String> _downloadedIds = {};
 
   @override
+  void initState() {
+    super.initState();
+    widget.controller?.addListener(_onControllerUpdate);
+    _cacheService.cachedSongIds.addListener(_onCacheUpdate);
+  }
+
+  void _onControllerUpdate() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _onCacheUpdate() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant OnlinePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller?.removeListener(_onControllerUpdate);
+      widget.controller?.addListener(_onControllerUpdate);
+    }
+  }
+
+  @override
   void dispose() {
+    widget.controller?.removeListener(_onControllerUpdate);
+    _cacheService.cachedSongIds.removeListener(_onCacheUpdate);
     _searchController.dispose();
     _youtube.dispose();
     super.dispose();
@@ -59,18 +92,17 @@ class _OnlinePageState extends State<OnlinePage> {
         _results = results;
         _loading = false;
       });
-      _checkDownloaded(results);
+      _checkDownloadedAndCached(results);
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error =
-            'Could not reach YouTube Music. Check your internet connection and try again.';
+        _error = 'Could not reach YouTube Music. Check your internet connection and try again.';
       });
     }
   }
 
-  Future<void> _checkDownloaded(List<Song> songs) async {
+  Future<void> _checkDownloadedAndCached(List<Song> songs) async {
     for (final song in songs) {
       final isDownloaded = await _youtube.isSongDownloaded(song);
       if (isDownloaded && mounted) {
@@ -78,27 +110,38 @@ class _OnlinePageState extends State<OnlinePage> {
           _downloadedIds.add(song.id);
         });
       }
+      // Also prime cache status
+      await _cacheService.getCachedFile(song.videoId);
     }
   }
 
-  Future<void> _play(Song song) async {
-    if (_resolvingId != null) return;
-    setState(() => _resolvingId = song.id);
+  void _handleTap(Song song, int index) async {
+    final controller = widget.controller;
+    if (controller == null) return;
 
-    try {
-      final resolved = await _youtube.resolveStream(song);
-      await widget.controller.playAt([resolved], 0);
-      widget.onOpenPlayer();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Unable to play this track right now.'),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _resolvingId = null);
+    final isCurrent = controller.currentSong?.id == song.id;
+    if (isCurrent) {
+      widget.onOpenPlayer?.call();
+      return;
     }
+
+    // Play online with multi-music caching and 10-song auto-pause
+    await controller.playAt(_results, index);
+    widget.onOpenPlayer?.call();
+  }
+
+  Future<void> _playAll({bool shuffle = false}) async {
+    final controller = widget.controller;
+    if (controller == null || _results.isEmpty) return;
+
+    if (shuffle && !controller.shuffle) {
+      await controller.toggleShuffle();
+    } else if (!shuffle && controller.shuffle) {
+      await controller.toggleShuffle();
+    }
+
+    await controller.playAt(_results, 0);
+    widget.onOpenPlayer?.call();
   }
 
   Future<void> _download(Song song) async {
@@ -135,13 +178,14 @@ class _OnlinePageState extends State<OnlinePage> {
         _downloadedIds.add(song.id);
       });
 
+      widget.onDownloaded?.call();
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Downloaded "${song.title}" as MP3'),
-          action: SnackBarAction(
-            label: 'Play',
-            onPressed: () => _play(song),
+          content: Text(
+            'Downloaded "${song.title}" to device. Available in Offline library.',
           ),
+          duration: const Duration(seconds: 3),
         ),
       );
     } catch (e) {
@@ -152,9 +196,7 @@ class _OnlinePageState extends State<OnlinePage> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to download "${song.title}": $e'),
-        ),
+        SnackBar(content: Text('Failed to download "${song.title}": $e')),
       );
     }
   }
@@ -169,11 +211,11 @@ class _OnlinePageState extends State<OnlinePage> {
             padding: const EdgeInsets.only(right: 16),
             child: Chip(
               avatar: Icon(
-                Icons.public_rounded,
+                Icons.play_circle_fill_rounded,
                 size: 16,
                 color: Theme.of(context).colorScheme.primary,
               ),
-              label: const Text('Online'),
+              label: const Text('Online Play'),
               visualDensity: VisualDensity.compact,
             ),
           ),
@@ -182,7 +224,7 @@ class _OnlinePageState extends State<OnlinePage> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
             child: TextField(
               controller: _searchController,
               textInputAction: TextInputAction.search,
@@ -226,10 +268,9 @@ class _OnlinePageState extends State<OnlinePage> {
 
     if (!_searched) {
       return const MessageState(
-        icon: Icons.public_rounded,
+        icon: Icons.music_note_rounded,
         title: 'Search YouTube Music',
-        message:
-            'Look up any song and stream or download it as an MP3 file.',
+        message: 'Search any music online. Multi-music queue will stream, cache to disk, and pause every 10 songs.',
       );
     }
 
@@ -241,43 +282,163 @@ class _OnlinePageState extends State<OnlinePage> {
       );
     }
 
-    return ListenableBuilder(
-      listenable: widget.controller,
-      builder: (context, _) {
-        final currentSong = widget.controller.currentSong;
-        final playing = widget.controller.isPlaying.value;
+    final isPausedByLimit = widget.controller?.isPausedByTenSongLimit ?? false;
+    final cachedSet = _cacheService.cachedSongIds.value;
 
-        return ListView.builder(
-          padding: const EdgeInsets.only(bottom: 8),
-          itemCount: _results.length,
-          itemBuilder: (context, index) {
-            final song = _results[index];
-            final isCurrent = currentSong?.id == song.id;
-            final resolving = _resolvingId == song.id;
-            final isDownloading = _downloadingIds.contains(song.id);
-            final progress = _downloadProgress[song.id];
-            final isDownloaded = _downloadedIds.contains(song.id);
+    return Column(
+      children: [
+        // 10-Song Auto-Pause Alert Banner
+        if (isPausedByLimit) _buildPausedByLimitBanner(),
 
-            return SongTile(
-              song: song,
-              isCurrent: isCurrent,
-              isPlaying: isCurrent && playing,
-              onTap: () => _play(song),
-              onDownload: () => _download(song),
-              isDownloading: isDownloading,
-              downloadProgress: progress,
-              isDownloaded: isDownloaded,
-              trailing: resolving
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : null,
-            );
-          },
-        );
-      },
+        // Multi-Music Queue Controls Header
+        _buildQueueHeader(),
+
+        // Search Results List
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.only(bottom: 8),
+            itemCount: _results.length,
+            itemBuilder: (context, index) {
+              final song = _results[index];
+              final isDownloading = _downloadingIds.contains(song.id);
+              final isDownloaded = _downloadedIds.contains(song.id);
+              final isCached = cachedSet.contains(song.videoId);
+              final progress = _downloadProgress[song.id];
+
+              final isCurrent = widget.controller?.currentSong?.id == song.id;
+              final isPlaying =
+                  isCurrent && (widget.controller?.isPlaying.value ?? false);
+
+              return SongTile(
+                song: song,
+                isCurrent: isCurrent,
+                isPlaying: isPlaying,
+                showPlayState: true,
+                isCached: isCached,
+                onTap: () => _handleTap(song, index),
+                onDownload: () => _download(song),
+                isDownloading: isDownloading,
+                downloadProgress: progress,
+                isDownloaded: isDownloaded,
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPausedByLimitBanner() {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: scheme.primaryContainer,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: scheme.primary.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.pause_circle_filled_rounded,
+            color: scheme.primary,
+            size: 28,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Paused after 10 songs',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: scheme.onPrimaryContainer,
+                  ),
+                ),
+                Text(
+                  'Continuous session paused. Tap Resume to play the next 10 songs.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: scheme.onPrimaryContainer.withValues(alpha: 0.85),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          FilledButton(
+            onPressed: () => widget.controller?.resumeFromTenSongLimit(),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              visualDensity: VisualDensity.compact,
+            ),
+            child: const Text('Resume'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQueueHeader() {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${_results.length} songs found',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.pause_circle_outline_rounded,
+                      size: 13,
+                      color: scheme.primary,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Pauses every 10 songs',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          FilledButton.icon(
+            onPressed: () => _playAll(shuffle: false),
+            icon: const Icon(Icons.play_arrow_rounded, size: 20),
+            label: const Text('Play All'),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+          const SizedBox(width: 6),
+          IconButton.filledTonal(
+            tooltip: 'Shuffle All',
+            onPressed: () => _playAll(shuffle: true),
+            icon: const Icon(Icons.shuffle_rounded, size: 18),
+            visualDensity: VisualDensity.compact,
+          ),
+        ],
+      ),
     );
   }
 }

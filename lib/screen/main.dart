@@ -15,6 +15,7 @@ class MainPage extends StatefulWidget {
 
 class _MainPageState extends State<MainPage> {
   final PlayerController _controller = PlayerController();
+  final GlobalKey<OfflinePageState> _offlineKey = GlobalKey<OfflinePageState>();
   int _tabIndex = 0;
 
   @override
@@ -37,8 +38,16 @@ class _MainPageState extends State<MainPage> {
       body: IndexedStack(
         index: _tabIndex,
         children: [
-          OfflinePage(controller: _controller, onOpenPlayer: _openPlayer),
-          OnlinePage(controller: _controller, onOpenPlayer: _openPlayer),
+          OfflinePage(
+            key: _offlineKey,
+            controller: _controller,
+            onOpenPlayer: _openPlayer,
+          ),
+          OnlinePage(
+            controller: _controller,
+            onOpenPlayer: _openPlayer,
+            onDownloaded: () => _offlineKey.currentState?.loadLibrary(),
+          ),
         ],
       ),
       bottomNavigationBar: Column(
@@ -48,6 +57,9 @@ class _MainPageState extends State<MainPage> {
           NavigationBar(
             selectedIndex: _tabIndex,
             onDestinationSelected: (index) {
+              if (index == 0 && _tabIndex != 0) {
+                _offlineKey.currentState?.loadLibrary();
+              }
               setState(() => _tabIndex = index);
             },
             destinations: const [

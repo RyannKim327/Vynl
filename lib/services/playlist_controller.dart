@@ -26,9 +26,7 @@ class PlaylistController extends ChangeNotifier {
           for (final item in data) {
             if (item is! Map) continue;
             try {
-              playlists.add(
-                Playlist.fromJson(Map<String, dynamic>.from(item)),
-              );
+              playlists.add(Playlist.fromJson(Map<String, dynamic>.from(item)));
             } catch (_) {}
           }
           _playlists = playlists;

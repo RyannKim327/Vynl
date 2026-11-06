@@ -1,11 +1,7 @@
 import 'song.dart';
 
 class Playlist {
-  const Playlist({
-    required this.id,
-    required this.name,
-    required this.songs,
-  });
+  const Playlist({required this.id, required this.name, required this.songs});
 
   final String id;
   final String name;
