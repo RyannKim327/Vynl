@@ -8,6 +8,7 @@ class MessageState extends StatelessWidget {
     required this.message,
     this.actionLabel,
     this.onAction,
+    this.actionIcon = Icons.refresh_rounded,
   });
 
   final IconData icon;
@@ -15,6 +16,7 @@ class MessageState extends StatelessWidget {
   final String message;
   final String? actionLabel;
   final VoidCallback? onAction;
+  final IconData actionIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +45,7 @@ class MessageState extends StatelessWidget {
               const SizedBox(height: 20),
               FilledButton.icon(
                 onPressed: onAction,
-                icon: const Icon(Icons.refresh_rounded),
+                icon: Icon(actionIcon),
                 label: Text(actionLabel!),
               ),
             ],

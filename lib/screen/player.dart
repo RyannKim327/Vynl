@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../services/player_controller.dart';
+import '../services/youtube_service.dart';
 import '../utils/format.dart';
 import '../widgets/song_artwork.dart';
 
@@ -59,7 +60,42 @@ class PlayerPage extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 48),
+                        if (!song.isLocal)
+                          IconButton(
+                            tooltip: 'Download MP3',
+                            icon: const Icon(Icons.download_rounded),
+                            onPressed: () async {
+                              final yt = YoutubeService();
+                              try {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Downloading "${song.title}" as MP3...'),
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                                await yt.downloadSong(song);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Downloaded "${song.title}" as MP3'),
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Failed to download "${song.title}": $e'),
+                                    ),
+                                  );
+                                }
+                              } finally {
+                                yt.dispose();
+                              }
+                            },
+                          )
+                        else
+                          const SizedBox(width: 48),
                       ],
                     ),
                     const Spacer(),

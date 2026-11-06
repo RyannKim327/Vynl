@@ -50,13 +50,14 @@ class Song {
     required String title,
     required String artist,
     required Duration duration,
-    required Uri artworkUri,
+    required Uri? artworkUri,
+    String album = 'YouTube Music',
   }) {
     return Song(
       id: 'yt:$videoId',
       title: title,
       artist: artist,
-      album: 'YouTube',
+      album: album,
       uri: Uri.parse('https://www.youtube.com/watch?v=$videoId'),
       duration: duration,
       artworkUri: artworkUri,
@@ -64,6 +65,51 @@ class Song {
   }
 
   String get videoId => id.startsWith('yt:') ? id.substring(3) : id;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'mediaId': mediaId,
+      'title': title,
+      'artist': artist,
+      'album': album,
+      'uri': uri.toString(),
+      'duration': duration.inMilliseconds,
+      'artworkUri': artworkUri?.toString(),
+      'isLocal': isLocal,
+    };
+  }
+
+  factory Song.fromJson(Map<String, dynamic> json) {
+    final id = json['id'];
+    final title = json['title'];
+    final artist = json['artist'];
+    final album = json['album'];
+    final uri = json['uri'];
+    if (id is! String ||
+        title is! String ||
+        artist is! String ||
+        album is! String ||
+        uri is! String) {
+      throw const FormatException('Invalid song');
+    }
+
+    final mediaId = json['mediaId'];
+    final duration = json['duration'];
+    final artworkUri = json['artworkUri'];
+
+    return Song(
+      id: id,
+      mediaId: mediaId is num ? mediaId.toInt() : null,
+      title: title,
+      artist: artist,
+      album: album,
+      uri: Uri.parse(uri),
+      duration: Duration(milliseconds: duration is num ? duration.toInt() : 0),
+      artworkUri: artworkUri is String ? Uri.tryParse(artworkUri) : null,
+      isLocal: json['isLocal'] == true,
+    );
+  }
 
   Song withStreamUri(Uri streamUri) {
     return Song(

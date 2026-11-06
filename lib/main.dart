@@ -6,7 +6,7 @@ import 'screen/main.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await JustAudioBackground.init(
-    androidNotificationChannelId: 'ph.mpop.vynl.channel.audio',
+    androidNotificationChannelId: 'ph.mpop.musicplayer.channel.audio',
     androidNotificationChannelName: 'Music playback',
     androidNotificationOngoing: true,
   );

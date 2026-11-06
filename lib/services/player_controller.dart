@@ -91,6 +91,12 @@ class PlayerController extends ChangeNotifier {
               .map(
                 (song) => AudioSource.uri(
                   song.uri,
+                  headers: song.isLocal
+                      ? null
+                      : const {
+                          'User-Agent':
+                              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        },
                   tag: MediaItem(
                     id: song.id,
                     title: song.title,

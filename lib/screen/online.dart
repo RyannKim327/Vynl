@@ -30,6 +30,10 @@ class _OnlinePageState extends State<OnlinePage> {
   String? _error;
   String? _resolvingId;
 
+  final Set<String> _downloadingIds = {};
+  final Map<String, double> _downloadProgress = {};
+  final Set<String> _downloadedIds = {};
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -55,12 +59,25 @@ class _OnlinePageState extends State<OnlinePage> {
         _results = results;
         _loading = false;
       });
+      _checkDownloaded(results);
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = 'Could not reach YouTube. Check your internet connection and try again.';
+        _error =
+            'Could not reach YouTube Music. Check your internet connection and try again.';
       });
+    }
+  }
+
+  Future<void> _checkDownloaded(List<Song> songs) async {
+    for (final song in songs) {
+      final isDownloaded = await _youtube.isSongDownloaded(song);
+      if (isDownloaded && mounted) {
+        setState(() {
+          _downloadedIds.add(song.id);
+        });
+      }
     }
   }
 
@@ -76,7 +93,7 @@ class _OnlinePageState extends State<OnlinePage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Unable to play this YouTube track right now.'),
+          content: Text('Unable to play this track right now.'),
         ),
       );
     } finally {
@@ -84,11 +101,69 @@ class _OnlinePageState extends State<OnlinePage> {
     }
   }
 
+  Future<void> _download(Song song) async {
+    if (_downloadingIds.contains(song.id)) return;
+
+    setState(() {
+      _downloadingIds.add(song.id);
+      _downloadProgress[song.id] = 0.0;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Downloading "${song.title}" as MP3...'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+
+    try {
+      await _youtube.downloadSong(
+        song,
+        onProgress: (p) {
+          if (mounted) {
+            setState(() {
+              _downloadProgress[song.id] = p;
+            });
+          }
+        },
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _downloadingIds.remove(song.id);
+        _downloadProgress.remove(song.id);
+        _downloadedIds.add(song.id);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Downloaded "${song.title}" as MP3'),
+          action: SnackBarAction(
+            label: 'Play',
+            onPressed: () => _play(song),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _downloadingIds.remove(song.id);
+        _downloadProgress.remove(song.id);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to download "${song.title}": $e'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('YouTube'),
+        title: const Text('YouTube Music'),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
@@ -113,7 +188,7 @@ class _OnlinePageState extends State<OnlinePage> {
               textInputAction: TextInputAction.search,
               onSubmitted: (_) => _search(),
               decoration: InputDecoration(
-                hintText: 'Search YouTube',
+                hintText: 'Search YouTube Music',
                 prefixIcon: const Icon(Icons.search_rounded),
                 suffixIcon: IconButton(
                   tooltip: 'Search',
@@ -142,7 +217,7 @@ class _OnlinePageState extends State<OnlinePage> {
     if (_error != null) {
       return MessageState(
         icon: Icons.wifi_off_rounded,
-        title: 'YouTube is unreachable',
+        title: 'YouTube Music is unreachable',
         message: _error!,
         actionLabel: 'Try again',
         onAction: _search,
@@ -152,8 +227,9 @@ class _OnlinePageState extends State<OnlinePage> {
     if (!_searched) {
       return const MessageState(
         icon: Icons.public_rounded,
-        title: 'Search YouTube',
-        message: 'Look up any song and stream it online. Offline files are always available in the Offline tab.',
+        title: 'Search YouTube Music',
+        message:
+            'Look up any song and stream or download it as an MP3 file.',
       );
     }
 
@@ -178,12 +254,19 @@ class _OnlinePageState extends State<OnlinePage> {
             final song = _results[index];
             final isCurrent = currentSong?.id == song.id;
             final resolving = _resolvingId == song.id;
+            final isDownloading = _downloadingIds.contains(song.id);
+            final progress = _downloadProgress[song.id];
+            final isDownloaded = _downloadedIds.contains(song.id);
 
             return SongTile(
               song: song,
               isCurrent: isCurrent,
               isPlaying: isCurrent && playing,
               onTap: () => _play(song),
+              onDownload: () => _download(song),
+              isDownloading: isDownloading,
+              downloadProgress: progress,
+              isDownloaded: isDownloaded,
               trailing: resolving
                   ? const SizedBox(
                       width: 22,
