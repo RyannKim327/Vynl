@@ -5,6 +5,7 @@ import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/song.dart';
 import 'music_cache_service.dart';
@@ -27,6 +28,9 @@ class PlayerController extends ChangeNotifier {
   final ValueNotifier<Duration?> duration = ValueNotifier(null);
   final ValueNotifier<bool> isPlaying = ValueNotifier(false);
   final ValueNotifier<bool> isBuffering = ValueNotifier(false);
+
+  static const String _shufflePreferenceKey = 'player.shuffle';
+  static const String _loopModePreferenceKey = 'player.loopMode';
 
   final List<Song> _queue = <Song>[];
   int _currentIndex = -1;
@@ -65,6 +69,8 @@ class PlayerController extends ChangeNotifier {
     final session = await AudioSession.instance;
     await session.configure(const AudioSessionConfiguration.music());
 
+    await _loadPreferences();
+
     _subscriptions.add(
       player.positionStream.listen((value) => position.value = value),
     );
@@ -84,6 +90,17 @@ class PlayerController extends ChangeNotifier {
         }
       }),
     );
+  }
+
+  Future<void> _loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    _shuffle = prefs.getBool(_shufflePreferenceKey) ?? false;
+    final loopModeName = prefs.getString(_loopModePreferenceKey);
+    _loopMode = LoopMode.values.firstWhere(
+      (mode) => mode.name == loopModeName,
+      orElse: () => LoopMode.off,
+    );
+    notifyListeners();
   }
 
   bool _isSameQueue(List<Song> songs) {
@@ -231,7 +248,10 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> togglePlay() async {
-    if (_isPausedByTenSongLimit) {
+    if (_queue.isEmpty) return;
+
+    final song = _queue[_currentIndex];
+    if (!song.isLocal && _isPausedByTenSongLimit) {
       await resumeFromTenSongLimit();
       return;
     }
@@ -312,6 +332,8 @@ class PlayerController extends ChangeNotifier {
   Future<void> toggleShuffle() async {
     _shuffle = !_shuffle;
     notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_shufflePreferenceKey, _shuffle);
   }
 
   Future<void> cycleLoopMode() async {
@@ -324,6 +346,8 @@ class PlayerController extends ChangeNotifier {
         _loopMode = LoopMode.off;
     }
     notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_loopModePreferenceKey, _loopMode.name);
   }
 
   @override
