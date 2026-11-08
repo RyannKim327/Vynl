@@ -470,40 +470,57 @@ class YoutubeService {
   }
 
   static Future<Directory> getDownloadDirectory() async {
-    // This is just to set a separated folder for download
-    final folder = "Vynl";
+    // Downloads are stored in Download/Music/Vynl so they are easy to find.
+    const folder = 'Vynl';
     if (!kIsWeb && Platform.isAndroid) {
-      for (final p in [
-        '/storage/emulated/0/Music/$folder',
-        '/storage/emulated/0/Download/$folder',
-      ]) {
-        final d = Directory(p);
-        if (await d.exists()) return d;
-      }
+      final candidates = <Directory>[
+        Directory('/storage/emulated/0/Music/$folder'),
+        Directory('/storage/emulated/0/Download/$folder'),
+      ];
       try {
-        final dirs = await getExternalStorageDirectories(
-          type: StorageDirectory.music,
-        );
-        if (dirs != null && dirs.isNotEmpty) {
-          return Directory('${dirs.first.toString()}/$folder');
+        final extDir = await getExternalStorageDirectory();
+        if (extDir != null) {
+          candidates.add(Directory('${extDir.path}/Music/$folder'));
         }
       } catch (_) {}
       try {
-        final extDir = await getExternalStorageDirectory();
-        if (extDir != null) return Directory('${extDir.toString()}/$folder');
+        final dirs = await getExternalStorageDirectories(
+          type: StorageDirectory.downloads,
+        );
+        if (dirs != null) {
+          for (final d in dirs) {
+            candidates.add(Directory('${d.path}/$folder'));
+          }
+        }
       } catch (_) {}
+
+      for (final d in candidates) {
+        try {
+          if (!await d.exists()) {
+            await d.create(recursive: true);
+          }
+          return d;
+        } catch (_) {}
+      }
     }
 
     try {
       final downloads = await getDownloadsDirectory();
       if (downloads != null) {
-        return Directory('${downloads.toString()}/$folder');
+        final d = Directory('${downloads.path}/$folder');
+        if (!await d.exists()) {
+          await d.create(recursive: true);
+        }
+        return d;
       }
     } catch (_) {}
 
     final dir = await getApplicationDocumentsDirectory();
-
-    return Directory('${dir.toString()}/$folder');
+    final fallback = Directory('${dir.path}/$folder');
+    if (!await fallback.exists()) {
+      await fallback.create(recursive: true);
+    }
+    return fallback;
   }
 
   void dispose() {

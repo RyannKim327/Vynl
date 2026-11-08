@@ -368,8 +368,16 @@ class OfflinePageState extends State<OfflinePage> {
             TextButton(
               onPressed: () async {
                 final Uri url = Uri.parse("https://ryannkim327.is-a.dev");
-                if (await canLaunchUrl(url)) {
+                try {
                   await launchUrl(url, mode: LaunchMode.externalApplication);
+                } catch (_) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Could not open the browser.'),
+                      ),
+                    );
+                  }
                 }
               },
               child: Text("Visit my portfolio"),
