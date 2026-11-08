@@ -1,4 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
+import 'package:vynl/statics.dart';
 
 import '../models/playlist.dart';
 import '../models/song.dart';
@@ -225,6 +230,127 @@ class OfflinePageState extends State<OfflinePage> {
     );
   }
 
+  Future<void> _feedback() async {
+    final cookieUrl = Uri.parse('$baseApi/set-cookie');
+    final feedbackUrl = Uri.parse('$baseApi/feedback/submit');
+    final usernameController = TextEditingController();
+    final messageController = TextEditingController();
+    final messenger = ScaffoldMessenger.of(context);
+    var sending = false;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> send() async {
+              final username = usernameController.text.trim();
+              final message = messageController.text.trim();
+
+              if (username.isEmpty || message.isEmpty) {
+                messenger.showSnackBar(
+                  const SnackBar(content: Text('Please fill in both fields.')),
+                );
+                return;
+              }
+
+              setDialogState(() => sending = true);
+              try {
+                final cookieResponse = await http.get(cookieUrl);
+                if (cookieResponse.statusCode < 200 ||
+                    cookieResponse.statusCode >= 300) {
+                  throw Exception(
+                    'Cookie request failed (${cookieResponse.statusCode})',
+                  );
+                }
+
+                final cookieBody =
+                    jsonDecode(cookieResponse.body) as Map<String, dynamic>;
+                final token = cookieBody['token'] as String?;
+                if (token == null || token.isEmpty) {
+                  throw Exception('Missing temporary cookie token');
+                }
+
+                final response = await http.post(
+                  feedbackUrl,
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Cookie': 'temporary=$token',
+                  },
+                  body: jsonEncode({
+                    'application': 'Vynl',
+                    'message': message,
+                    'userId': username,
+                  }),
+                );
+
+                if (response.statusCode < 200 || response.statusCode >= 300) {
+                  throw Exception('Request failed (${response.statusCode})');
+                }
+
+                if (!dialogContext.mounted) return;
+                Navigator.of(dialogContext).pop();
+                messenger.showSnackBar(
+                  const SnackBar(content: Text('Thanks for your feedback!')),
+                );
+              } catch (_) {
+                if (!dialogContext.mounted) return;
+                setDialogState(() => sending = false);
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('Could not send feedback. Please try again.'),
+                  ),
+                );
+              }
+            }
+
+            return AlertDialog(
+              title: const Text('Send us your experience'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: usernameController,
+                    enabled: !sending,
+                    decoration: const InputDecoration(hintText: 'Username'),
+                  ),
+                  TextField(
+                    controller: messageController,
+                    enabled: !sending,
+                    maxLines: 5,
+                    decoration: const InputDecoration(hintText: 'Content'),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: sending
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: sending ? null : send,
+                  child: sending
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Send'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    usernameController.dispose();
+    messageController.dispose();
+  }
+
   void _aboutTheApp() {
     showDialog(
       context: context,
@@ -239,7 +365,15 @@ class OfflinePageState extends State<OfflinePage> {
               onPressed: () => {Navigator.of(context).pop(false)},
               child: Text("Close"),
             ),
-            TextButton(onPressed: () => {}, child: Text("Visit my portfolio")),
+            TextButton(
+              onPressed: () async {
+                final Uri url = Uri.parse("https://ryannkim327.is-a.dev");
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                }
+              },
+              child: Text("Visit my portfolio"),
+            ),
           ],
         );
       },
@@ -265,9 +399,14 @@ class OfflinePageState extends State<OfflinePage> {
               icon: const Icon(Icons.add_rounded),
             ),
           IconButton(
+            onPressed: _feedback,
+            icon: const Icon(Icons.feedback_rounded),
+            tooltip: "Feedback",
+          ),
+          IconButton(
             tooltip: "About",
             onPressed: _aboutTheApp,
-            icon: Icon(Icons.info_rounded),
+            icon: const Icon(Icons.info_rounded),
           ),
         ],
       ),

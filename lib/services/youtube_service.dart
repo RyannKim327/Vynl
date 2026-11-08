@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:vynl/statics.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
 import '../models/song.dart';
@@ -21,8 +22,7 @@ class YoutubeService {
       'Chrome/120.0.0.0 Safari/537.36';
   static const _userAgent = userAgent;
 
-  static const _renderApiEndpoint =
-      'https://portfolio-backend-pi-nine.vercel.app/yt';
+  static const _renderApiEndpoint = '$baseApi/yt';
 
   // YouTube Music Songs filter parameter
   // Thank you for the owner of this API key
