@@ -205,6 +205,8 @@ class PlayerController extends ChangeNotifier {
   Future<void> _handleTrackCompleted() async {
     if (_queue.isEmpty) return;
 
+    final song = _queue[_currentIndex];
+
     if (_loopMode == LoopMode.one) {
       await player.seek(Duration.zero);
       await player.play();
@@ -214,7 +216,7 @@ class PlayerController extends ChangeNotifier {
     _consecutivePlaysCount++;
 
     // "example in a search, it will play all the music, but pause every 10 songs"
-    if (_pauseEveryTenSongs && _consecutivePlaysCount >= 10) {
+    if (!song.isLocal && _pauseEveryTenSongs && _consecutivePlaysCount >= 10) {
       _isPausedByTenSongLimit = true;
       _consecutivePlaysCount = 0; // ready for the next 10-song batch
       await player.pause();

@@ -12,6 +12,7 @@ import 'music_cache_service.dart';
 
 class YoutubeService {
   static const _searchEndpoint = 'https://music.youtube.com/youtubei/v1/search';
+  // Thank you for the owner of this API key
   static const _apiKey = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
   static const _clientVersion = '1.20240726.00.00';
   static const userAgent =
@@ -24,6 +25,7 @@ class YoutubeService {
       'https://portfolio-backend-pi-nine.vercel.app/yt';
 
   // YouTube Music Songs filter parameter
+  // Thank you for the owner of this API key
   static const _songsFilterParam = 'EgWKAQIIAWoSEAQQAxAFEAkQChAVEBAQDhAR';
 
   final YoutubeExplode _youtube = YoutubeExplode();
@@ -468,10 +470,12 @@ class YoutubeService {
   }
 
   static Future<Directory> getDownloadDirectory() async {
+    // This is just to set a separated folder for download
+    final folder = "Vynl";
     if (!kIsWeb && Platform.isAndroid) {
       for (final p in [
-        '/storage/emulated/0/Music',
-        '/storage/emulated/0/Download',
+        '/storage/emulated/0/Music/$folder',
+        '/storage/emulated/0/Download/$folder',
       ]) {
         final d = Directory(p);
         if (await d.exists()) return d;
@@ -480,20 +484,26 @@ class YoutubeService {
         final dirs = await getExternalStorageDirectories(
           type: StorageDirectory.music,
         );
-        if (dirs != null && dirs.isNotEmpty) return dirs.first;
+        if (dirs != null && dirs.isNotEmpty) {
+          return Directory('${dirs.first.toString()}/$folder');
+        }
       } catch (_) {}
       try {
         final extDir = await getExternalStorageDirectory();
-        if (extDir != null) return extDir;
+        if (extDir != null) return Directory('${extDir.toString()}/$folder');
       } catch (_) {}
     }
 
     try {
       final downloads = await getDownloadsDirectory();
-      if (downloads != null) return downloads;
+      if (downloads != null) {
+        return Directory('${downloads.toString()}/$folder');
+      }
     } catch (_) {}
 
-    return await getApplicationDocumentsDirectory();
+    final dir = await getApplicationDocumentsDirectory();
+
+    return Directory('${dir.toString()}/$folder');
   }
 
   void dispose() {

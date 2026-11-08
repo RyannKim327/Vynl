@@ -225,6 +225,27 @@ class OfflinePageState extends State<OfflinePage> {
     );
   }
 
+  void _aboutTheApp() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text("About the app"),
+          content: Text(
+            "Vynl is a music player alternative build with offline and online stream with download feature.",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => {Navigator.of(context).pop(false)},
+              child: Text("Close"),
+            ),
+            TextButton(onPressed: () => {}, child: Text("Visit my portfolio")),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -243,6 +264,11 @@ class OfflinePageState extends State<OfflinePage> {
               onPressed: _createPlaylist,
               icon: const Icon(Icons.add_rounded),
             ),
+          IconButton(
+            tooltip: "About",
+            onPressed: _aboutTheApp,
+            icon: Icon(Icons.info_rounded),
+          ),
         ],
       ),
       floatingActionButton: _view == _LibraryView.playlists
